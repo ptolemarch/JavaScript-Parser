@@ -1,0 +1,6 @@
+Revision history for Perl extension JavaScript::Parser.
+
+0.01  Wed May  1 19:11:53 2002
+	- original version; created by h2xs 1.21 with options
+		-AX -n JavaScript::Parser
+

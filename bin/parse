@@ -1,0 +1,54 @@
+#! /usr/local/bin/perl
+use warnings;
+use strict;
+
+use lib '../blib/lib';
+
+use JavaScript::Tokenizer;
+use JavaScript::Grammar;
+
+use List::Util qw(sum);
+
+local $/;  # slurp!
+open CODE, "../t/js/lionbanking.js" or die "florp! $!";
+my $code = <CODE>;
+close CODE or die "florp! $!";
+
+my $parser = JavaScript::Grammar->new;
+my $tokens = JavaScript::Tokenizer->from_string($code);
+
+my $line;
+
+sub error
+{
+        my @hope = $_[0]->YYExpect;
+        my $got = $_[0]->YYCurtok;
+        die "fuck: I was hoping for one of (@hope), but I got a $got instead.\n";
+}
+sub lexer
+{
+        my $token = $tokens->token;
+
+        if (not defined $token) {
+                return '', undef;
+        } elsif (defined $token->terminal) {
+                return $token->terminal, $token;
+        } else {
+                # whitespace or something else that doesn't want to talk
+                #   to a parser
+                return &lexer;
+        }
+}
+
+sub ison
+{
+        warn "ison:  YYCurtok before: " . $_[0]->YYCurtok . "\n";
+#        $_[0]->YYCurtok(";") if 1;
+#        warn "ison:  YYCurtok aftere: " . $_[0]->YYCurtok . "\n";
+}
+
+my $value = $parser->YYParse(
+        yyison=> \&ison, yylex => \&lexer, yyerror => \&error,
+#        yypackage => 'JavaScript::MonkeyPackage'
+);
+print $value, "\n";

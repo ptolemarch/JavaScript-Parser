@@ -1,0 +1,752 @@
+# vim:ft=perl:nowrap
+# I'm sorry this file is 151 columns wide.  I don't like it, either.
+#   But the alternative is that it's even *less* readable.
+
+# Grammar for the JavaScript language, suitable for Parse::Yapp
+# Transcribed and adapted by David "cogent" Hand, davidhand@davidhand.com
+#
+# Taken largely from ECMA-262 ("ECMAScript Language Specification"), Annex A.
+#   Numbers in comments to the right of a rule refer to sections in ECMA-262.
+#
+# ECMA-262 is available from http://www.ecma.ch/ecma1/STAND/ECMA-262.htm
+#
+# This file is copyright (C) 2002 David "cogent" Hand
+#
+# POD documentation for JavaScript::Grammar at end of file
+
+# $_[0]->{js_iere}, $_[0]->{js_ied}, and $_[0]->{js_ison} are
+#   subroutines set by this module's YYParse(), below
+#       js_iere:        set tokenizer mode to InputElementRegExp
+#       js_ied:         set tokenizer mode to InputElementDiv
+#       js_ison:        insert a semicolon if next token is newline
+#
+# $_[0]->{js_package} is a classname (or, gosh, maybe an object reference)
+#   telling us from where to get our callbacks.
+
+# The "...NoIn" set of nonterminals represents a part of the grammar in
+#   which the token "in" is invalid.  This set of nonterminals is
+#   transcribed here just as it appears in the ECMA-262 grammar.  This
+#   set of nonterminals ends with RelationalExpressionNoIn.
+# The "...NoFb" set of nonterminals represents a part of the grammar in
+#   which neither '{' nor 'function' are valid as the next token.  These
+#   nonterminals are *not* in the ECMA-262 grammar.  Instead, the
+#   definition of "ExpressionStatement" just says "the lookahead token
+#   is not a member of the set ('{', 'Expression')".  Well, you can't
+#   *do* that in a pure LALR grammar.  Bastards.  Each "...NoFb"
+#   nonterminal rule has only terminals and other "...NoFb" nonterminals
+#   as the *first* symbols in any of their productions.  This set of
+#   nonterminals ends with PrimaryExpressionNoFb and MemberExpressionNoFb.
+
+#=============================================================================
+# Header
+#-----------------------------------------------------------------------------
+%start Program                                                  # start rule
+%expect 1  # one shift/reduce conflict in IfStatement, should be fine
+
+%token Identifier                                               # 7.6
+%token NullLiteral                                              # 7.8.1
+%token BooleanLiteral                                           # 7.8.2
+%token DecimalLiteral                                           # 7.8.3
+%token HexIntegerLiteral                                        # 7.8.3
+%token StringLiteral                                            # 7.8.4
+%token RegularExpressionLiteral                                 # 7.8.5
+
+%%
+#=============================================================================
+# Rules
+#-----------------------------------------------------------------------------
+# In-Rule Actions
+_ISON_:                                                         # cogent
+        /* empty */ {$_[0]->{js_ison}->($_[0]);}
+;
+_IERE_:                                                         # cogent
+        /* empty */ {$_[0]->{js_iere}->();}
+;
+_IED_:                                                          # cogent
+        /* empty */ {$_[0]->{js_ied}->();}
+;
+
+# Lexical Grammar (Highlights)                                  # A.1
+Literal:  # munged a bit                                        # 7.8
+        NullLiteral                                             {$_[0]->{js_package}->Literal_1(@_);}
+|       BooleanLiteral                                          {$_[0]->{js_package}->Literal_2(@_);}
+|       StringLiteral                                           {$_[0]->{js_package}->Literal_3(@_);}
+|       NumericLiteral                                          {$_[0]->{js_package}->Literal_4(@_);}
+|       RegularExpressionLiteral                                {$_[0]->{js_package}->Literal_5(@_);}
+;
+
+NumericLiteral:                                                 # 7.8.3
+        DecimalLiteral                                          {$_[0]->{js_package}->NumericLiteral_1(@_);}
+|       HexIntegerLiteral                                       {$_[0]->{js_package}->NumericLiteral_2(@_);}
+;
+
+# Expressions                                                   # A.3
+PrimaryExpression:                                              # 11.1
+        'this'                                                  {$_[0]->{js_package}->PrimaryExpression_1(@_);}
+|       Identifier                                              {$_[0]->{js_package}->PrimaryExpression_2(@_);}
+|       _IERE_ Literal _IED_                                    {$_[0]->{js_package}->PrimaryExpression_3(@_);}
+|       ArrayLiteral                                            {$_[0]->{js_package}->PrimaryExpression_4(@_);}
+|       ObjectLiteral                                           {$_[0]->{js_package}->PrimaryExpression_5(@_);}
+|       '(' Expression ')'                                      {$_[0]->{js_package}->PrimaryExpression_6(@_);}
+;
+
+PrimaryExpressionNoFb:                                          # cogent
+        'this'                                                  {$_[0]->{js_package}->PrimaryExpressionNoFb_1(@_);}
+|       Identifier                                              {$_[0]->{js_package}->PrimaryExpressionNoFb_2(@_);}
+|       _IERE_ Literal _IED_                                    {$_[0]->{js_package}->PrimaryExpressionNoFb_3(@_);}
+|       ArrayLiteral                                            {$_[0]->{js_package}->PrimaryExpressionNoFb_4(@_);}
+                                                                # NoFb!
+|       '(' Expression ')'                                      {$_[0]->{js_package}->PrimaryExpressionNoFb_6(@_);}
+;
+
+ArrayLiteral:                                                   # 11.1.4
+        '[' ']'                                                 {$_[0]->{js_package}->ArrayLiteral_1(@_);}
+|       '[' Elision ']'                                         {$_[0]->{js_package}->ArrayLiteral_2(@_);}
+|       '[' ElementList ']'                                     {$_[0]->{js_package}->ArrayLiteral_3(@_);}
+|       '[' ElementList ',' ']'                                 {$_[0]->{js_package}->ArrayLiteral_4(@_);}
+|       '[' ElementList ',' Elision ']'                         {$_[0]->{js_package}->ArrayLiteral_5(@_);}
+;
+
+ElementList:                                                    # 11.1.4
+        AssignmentExpression                                    {$_[0]->{js_package}->ElementList_1(@_);}
+|       Elision AssignmentExpression                            {$_[0]->{js_package}->ElementList_2(@_);}
+|       Elementlist ',' AssignmentExpression                    {$_[0]->{js_package}->ElementList_3(@_);}
+|       Elementlist ',' Elision AssignmentExpression            {$_[0]->{js_package}->ElementList_4(@_);}
+;
+
+Elision:                                                        # 11.1.4
+        ','                                                     {$_[0]->{js_package}->Elision_1(@_);}
+|       Elision ','                                             {$_[0]->{js_package}->Elision_2(@_);}
+;
+
+ObjectLiteral:                                                  # 11.1.5
+        '{' '}'                                                 {$_[0]->{js_package}->ObjectLiteral_1(@_);}
+|       '{' PropertyNameAndValueList '}'                        {$_[0]->{js_package}->ObjectLiteral_2(@_);}
+;
+
+PropertyNameAndValueList:                                       # 11.1.5
+        PropertyName ':' AssignmentExpression                                   {$_[0]->{js_package}->PropertyNameAndValueList_1(@_);}
+|       PropertyNameAndValueList ',' PropertyName ':' AssignmentExpression      {$_[0]->{js_package}->PropertyNameAndValueList_2(@_);}
+;
+
+PropertyName:                                                   # 11.1.5
+        Identifier                                              {$_[0]->{js_package}->PropertyName_1(@_);}
+|       StringLiteral                                           {$_[0]->{js_package}->PropertyName_2(@_);}
+|       NumericLiteral                                          {$_[0]->{js_package}->PropertyName_3(@_);}
+;
+
+MemberExpression:                                               # 11.2
+        PrimaryExpression                                       {$_[0]->{js_package}->MemberExpression_1(@_);}
+|       FunctionExpression                                      {$_[0]->{js_package}->MemberExpression_2(@_);}
+|       MemberExpression '[' Expression ']'                     {$_[0]->{js_package}->MemberExpression_3(@_);}
+|       MemberExpression '.' Identifier                         {$_[0]->{js_package}->MemberExpression_4(@_);}
+|       'new' MemberExpression Arguments                        {$_[0]->{js_package}->MemberExpression_5(@_);}
+;
+
+MemberExpressionNoFb:                                           # cogent
+        PrimaryExpressionNoFb                                   {$_[0]->{js_package}->MemberExpressionNoFb_1(@_);}
+                                                                # NoFb!
+|       MemberExpressionNoFb '[' Expression ']'                 {$_[0]->{js_package}->MemberExpressionNoFb_3(@_);}
+|       MemberExpressionNoFb '.' Identifier                     {$_[0]->{js_package}->MemberExpressionNoFb_4(@_);}
+|       'new' MemberExpression Arguments                        {$_[0]->{js_package}->MemberExpressionNoFb_5(@_);}
+;
+
+NewExpression:                                                  # 11.2
+        MemberExpression                                        {$_[0]->{js_package}->NewExpression_1(@_);}
+|       'new' NewExpression                                     {$_[0]->{js_package}->NewExpression_2(@_);}
+;
+
+NewExpressionNoFb:                                              # cogent
+        MemberExpressionNoFb                                    {$_[0]->{js_package}->newExpressionNoFb_1(@_);}
+|       'new' NewExpression                                     {$_[0]->{js_package}->newExpressionNoFb_2(@_);}
+;
+
+CallExpression:                                                 # 11.2
+        MemberExpression Arguments                              {$_[0]->{js_package}->CallExpression_1(@_);}
+|       CallExpression Arguments                                {$_[0]->{js_package}->CallExpression_2(@_);}
+|       CallExpression '[' Expression ']'                       {$_[0]->{js_package}->CallExpression_3(@_);}
+|       CallExpression '.' Identifier                           {$_[0]->{js_package}->CallExpression_4(@_);}
+;
+
+CallExpressionNoFb:                                             # cogent
+        MemberExpressionNoFb Arguments                          {$_[0]->{js_package}->CallExpressionNoFb_1(@_);}
+|       CallExpressionNoFb Arguments                            {$_[0]->{js_package}->CallExpressionNoFb_2(@_);}
+|       CallExpressionNoFb '[' Expression ']'                   {$_[0]->{js_package}->CallExpressionNoFb_3(@_);}
+|       CallExpressionNoFb '.' Identifier                       {$_[0]->{js_package}->CallExpressionNoFb_4(@_);}
+;
+
+Arguments:                                                      # 11.2
+        '(' ')'                                                 {$_[0]->{js_package}->Arguments_1(@_);}
+|       '(' ArgumentList ')'                                    {$_[0]->{js_package}->Arguments_2(@_);}
+;
+
+ArgumentList:                                                   # 11.2
+        AssignmentExpression                                    {$_[0]->{js_package}->ArgumentList_1(@_);}
+|       ArgumentList ',' AssignmentExpression                   {$_[0]->{js_package}->ArgumentList_2(@_);}
+;
+
+LeftHandSideExpression:                                         # 11.2
+        NewExpression                                           {$_[0]->{js_package}->LeftHandSideExpression_1(@_);}
+|       CallExpression                                          {$_[0]->{js_package}->LeftHandSideExpression_2(@_);}
+;
+
+LeftHandSideExpressionNoFb:                                     # cogent
+        NewExpressionNoFb                                       {$_[0]->{js_package}->LeftHandSideExpressionNoFb_1(@_);}
+|       CallExpressionNoFb                                      {$_[0]->{js_package}->LeftHandSideExpressionNoFb_2(@_);}
+;
+
+PostfixExpression:                                              # 11.3
+        LeftHandSideExpression                                  {$_[0]->{js_package}->PostfixExpression_1(@_);}
+|       LeftHandSideExpression _ISON_ '++'                      {$_[0]->{js_package}->PostfixExpression_2(@_);}
+|       LeftHandSideExpression _ISON_ '--'                      {$_[0]->{js_package}->PostfixExpression_3(@_);}
+;
+
+PostfixExpressionNoFb:                                          # cogent
+        LeftHandSideExpressionNoFb                              {$_[0]->{js_package}->PostfixExpressionNoFb_1(@_);}
+|       LeftHandSideExpressionNoFb _ISON_ '++'                  {$_[0]->{js_package}->PostfixExpressionNoFb_2(@_);}
+|       LeftHandSideExpressionNoFb _ISON_ '--'                  {$_[0]->{js_package}->PostfixExpressionNoFb_3(@_);}
+;
+
+UnaryExpression:                                                # 11.4
+        PostfixExpression                                       {$_[0]->{js_package}->UnaryExpression_1(@_);}
+|       'delete' UnaryExpression                                {$_[0]->{js_package}->UnaryExpression_2(@_);}
+|       'void' UnaryExpression                                  {$_[0]->{js_package}->UnaryExpression_3(@_);}
+|       'typeof' UnaryExpression                                {$_[0]->{js_package}->UnaryExpression_4(@_);}
+|       '++' UnaryExpression                                    {$_[0]->{js_package}->UnaryExpression_5(@_);}
+|       '--' UnaryExpression                                    {$_[0]->{js_package}->UnaryExpression_6(@_);}
+|       '+' UnaryExpression                                     {$_[0]->{js_package}->UnaryExpression_7(@_);}
+|       '-' UnaryExpression                                     {$_[0]->{js_package}->UnaryExpression_8(@_);}
+|       '~' UnaryExpression                                     {$_[0]->{js_package}->UnaryExpression_9(@_);}
+|       '!' UnaryExpression                                     {$_[0]->{js_package}->UnaryExpression_10(@_);}
+;
+
+UnaryExpressionNoFb:                                            # cogent
+        PostfixExpressionNoFb                                   {$_[0]->{js_package}->UnaryExpressionNoFb_1(@_);}
+|       'delete' UnaryExpression                                {$_[0]->{js_package}->UnaryExpressionNoFb_2(@_);}
+|       'void' UnaryExpression                                  {$_[0]->{js_package}->UnaryExpressionNoFb_3(@_);}
+|       'typeof' UnaryExpression                                {$_[0]->{js_package}->UnaryExpressionNoFb_4(@_);}
+|       '++' UnaryExpression                                    {$_[0]->{js_package}->UnaryExpressionNoFb_5(@_);}
+|       '--' UnaryExpression                                    {$_[0]->{js_package}->UnaryExpressionNoFb_6(@_);}
+|       '+' UnaryExpression                                     {$_[0]->{js_package}->UnaryExpressionNoFb_7(@_);}
+|       '-' UnaryExpression                                     {$_[0]->{js_package}->UnaryExpressionNoFb_8(@_);}
+|       '~' UnaryExpression                                     {$_[0]->{js_package}->UnaryExpressionNoFb_9(@_);}
+|       '!' UnaryExpression                                     {$_[0]->{js_package}->UnaryExpressionNoFb_10(@_);}
+;
+
+MultiplicativeExpression:                                       # 11.5
+        UnaryExpression                                         {$_[0]->{js_package}->MultiplicativeExpression_1(@_);}
+|       MultiplicativeExpression '*' UnaryExpression            {$_[0]->{js_package}->MultiplicativeExpression_2(@_);}
+|       MultiplicativeExpression '/' UnaryExpression            {$_[0]->{js_package}->MultiplicativeExpression_3(@_);}
+|       MultiplicativeExpression '%' UnaryExpression            {$_[0]->{js_package}->MultiplicativeExpression_4(@_);}
+;
+
+MultiplicativeExpressionNoFb:                                   # cogent
+        UnaryExpressionNoFb                                     {$_[0]->{js_package}->MultiplicativeExpressionNoFb_1(@_);}
+|       MultiplicativeExpressionNoFb '*' UnaryExpression        {$_[0]->{js_package}->MultiplicativeExpressionNoFb_2(@_);}
+|       MultiplicativeExpressionNoFb '/' UnaryExpression        {$_[0]->{js_package}->MultiplicativeExpressionNoFb_3(@_);}
+|       MultiplicativeExpressionNoFb '%' UnaryExpression        {$_[0]->{js_package}->MultiplicativeExpressionNoFb_4(@_);}
+;
+
+AdditiveExpression:                                             # 11.6
+        MultiplicativeExpression                                {$_[0]->{js_package}->AdditiveExpression_1(@_);}
+|       AdditiveExpression '+' MultiplicativeExpression         {$_[0]->{js_package}->AdditiveExpression_2(@_);}
+|       AdditiveExpression '-' MultiplicativeExpression         {$_[0]->{js_package}->AdditiveExpression_3(@_);}
+;
+
+AdditiveExpressionNoFb:                                         # cogent
+        MultiplicativeExpressionNoFb                            {$_[0]->{js_package}->AdditiveExpressionNoFb_1(@_);}
+|       AdditiveExpressionNoFb '+' MultiplicativeExpression     {$_[0]->{js_package}->AdditiveExpressionNoFb_2(@_);}
+|       AdditiveExpressionNoFb '-' MultiplicativeExpression     {$_[0]->{js_package}->AdditiveExpressionNoFb_3(@_);}
+;
+
+ShiftExpression:                                                # 11.7
+        AdditiveExpression                                      {$_[0]->{js_package}->ShiftExpression_1(@_);}
+|       ShiftExpression '<<' AdditiveExpression                 {$_[0]->{js_package}->ShiftExpression_2(@_);}
+|       ShiftExpression '>>' AdditiveExpression                 {$_[0]->{js_package}->ShiftExpression_3(@_);}
+|       ShiftExpression '>>>' AdditiveExpression                {$_[0]->{js_package}->ShiftExpression_4(@_);}
+;
+
+ShiftExpressionNoFb:                                            # cogent
+        AdditiveExpressionNoFb                                  {$_[0]->{js_package}->ShiftExpresionNoFb_1(@_);}
+|       ShiftExpressionNoFb '<<' AdditiveExpression             {$_[0]->{js_package}->ShiftExpresionNoFb_2(@_);}
+|       ShiftExpressionNoFb '>>' AdditiveExpression             {$_[0]->{js_package}->ShiftExpresionNoFb_3(@_);}
+|       ShiftExpressionNoFb '>>>' AdditiveExpression            {$_[0]->{js_package}->ShiftExpresionNoFb_4(@_);}
+;
+
+RelationalExpression:                                           # 11.8
+        ShiftExpression                                         {$_[0]->{js_package}->RelationalExpression_1(@_);}
+|       RelationalExpression '<' ShiftExpression                {$_[0]->{js_package}->RelationalExpression_2(@_);}
+|       RelationalExpression '>' ShiftExpression                {$_[0]->{js_package}->RelationalExpression_3(@_);}
+|       RelationalExpression '<=' ShiftExpression               {$_[0]->{js_package}->RelationalExpression_4(@_);}
+|       RelationalExpression '>=' ShiftExpression               {$_[0]->{js_package}->RelationalExpression_5(@_);}
+|       RelationalExpression 'instanceof' ShiftExpression       {$_[0]->{js_package}->RelationalExpression_6(@_);}
+|       RelationalExpression 'in' ShiftExpression               {$_[0]->{js_package}->RelationalExpression_7(@_);}
+;
+
+RelationalExpressionNoFb:                                       # cogent
+        ShiftExpressionNoFb                                     {$_[0]->{js_package}->RelationalExpressionNoFb_1(@_);}
+|       RelationalExpressionNoFb '<' ShiftExpression            {$_[0]->{js_package}->RelationalExpressionNoFb_2(@_);}
+|       RelationalExpressionNoFb '>' ShiftExpression            {$_[0]->{js_package}->RelationalExpressionNoFb_3(@_);}
+|       RelationalExpressionNoFb '<=' ShiftExpression           {$_[0]->{js_package}->RelationalExpressionNoFb_4(@_);}
+|       RelationalExpressionNoFb '>=' ShiftExpression           {$_[0]->{js_package}->RelationalExpressionNoFb_5(@_);}
+|       RelationalExpressionNoFb 'instanceof' ShiftExpression   {$_[0]->{js_package}->RelationalExpressionNoFb_6(@_);}
+|       RelationalExpressionNoFb 'in' ShiftExpression           {$_[0]->{js_package}->RelationalExpressionNoFb_7(@_);}
+;
+
+RelationalExpressionNoIn:                                       # 11.8
+        ShiftExpression                                         {$_[0]->{js_package}->RelationalExpressionNoIn_1(@_);}
+|       RelationalExpressionNoIn '<' ShiftExpression            {$_[0]->{js_package}->RelationalExpressionNoIn_2(@_);}
+|       RelationalExpressionNoIn '>' ShiftExpression            {$_[0]->{js_package}->RelationalExpressionNoIn_3(@_);}
+|       RelationalExpressionNoIn '<=' ShiftExpression           {$_[0]->{js_package}->RelationalExpressionNoIn_4(@_);}
+|       RelationalExpressionNoIn '>=' ShiftExpression           {$_[0]->{js_package}->RelationalExpressionNoIn_5(@_);}
+|       RelationalExpressionNoIn 'instanceof' ShiftExpression   {$_[0]->{js_package}->RelationalExpressionNoIn_6(@_);}
+                                                                # NoIn!
+;
+
+EqualityExpression:                                             # 11.9
+        RelationalExpression                                    {$_[0]->{js_package}->EqualityExpression_1(@_);}
+|       EqualityExpression '==' RelationalExpression            {$_[0]->{js_package}->EqualityExpression_2(@_);}
+|       EqualityExpression '!=' RelationalExpression            {$_[0]->{js_package}->EqualityExpression_3(@_);}
+|       EqualityExpression '===' RelationalExpression           {$_[0]->{js_package}->EqualityExpression_4(@_);}
+|       EqualityExpression '!==' RelationalExpression           {$_[0]->{js_package}->EqualityExpression_5(@_);}
+;
+
+EqualityExpressionNoFb:                                         # cogent
+        RelationalExpressionNoFb                                {$_[0]->{js_package}->EqualityExpressionNoFb_1(@_);}
+|       EqualityExpressionNoFb '==' RelationalExpression        {$_[0]->{js_package}->EqualityExpressionNoFb_2(@_);}
+|       EqualityExpressionNoFb '!=' RelationalExpression        {$_[0]->{js_package}->EqualityExpressionNoFb_3(@_);}
+|       EqualityExpressionNoFb '===' RelationalExpression       {$_[0]->{js_package}->EqualityExpressionNoFb_4(@_);}
+|       EqualityExpressionNoFb '!==' RelationalExpression       {$_[0]->{js_package}->EqualityExpressionNoFb_5(@_);}
+;
+
+EqualityExpressionNoIn:                                         # 11.9
+        RelationalExpressionNoIn                                {$_[0]->{js_package}->EqualityExpressionNoIn_1(@_);}
+|       EqualityExpressionNoIn '==' RelationalExpressionNoIn    {$_[0]->{js_package}->EqualityExpressionNoIn_2(@_);}
+|       EqualityExpressionNoIn '!=' RelationalExpressionNoIn    {$_[0]->{js_package}->EqualityExpressionNoIn_3(@_);}
+|       EqualityExpressionNoIn '===' RelationalExpressionNoIn   {$_[0]->{js_package}->EqualityExpressionNoIn_4(@_);}
+|       EqualityExpressionNoIn '!==' RelationalExpressionNoIn   {$_[0]->{js_package}->EqualityExpressionNoIn_5(@_);}
+;
+
+BitwiseAndExpression:                                           # 11.10
+        EqualityExpression                                      {$_[0]->{js_package}->BitwiseAndExpression_1(@_);}
+|       BitwiseAndExpression '&' EqualityExpression             {$_[0]->{js_package}->BitwiseAndExpression_2(@_);}
+;
+
+BitwiseAndExpressionNoFb:                                       # cogent
+        EqualityExpressionNoFb                                  {$_[0]->{js_package}->BitwiseAndExpressionNoFb_1(@_);}
+|       BitwiseAndExpressionNoFb '&' EqualityExpression         {$_[0]->{js_package}->BitwiseAndExpressionNoFb_2(@_);}
+;
+
+BitwiseAndExpressionNoIn:                                       # 11.10
+        EqualityExpressionNoIn                                  {$_[0]->{js_package}->BitwiseAndExpressionNoIn_1(@_);}
+|       BitwiseAndExpressionNoIn '&' EqualityExpressionNoIn     {$_[0]->{js_package}->BitwiseAndExpressionNoIn_2(@_);}
+;
+
+BitwiseXorExpression:                                           # 11.10
+        BitwiseAndExpression                                    {$_[0]->{js_package}->BitwiseXorExpression_1(@_);}
+|       BitwiseXorExpression '^' BitwiseAndExpression           {$_[0]->{js_package}->BitwiseXorExpression_2(@_);}
+;
+
+BitwiseXorExpressionNoFb:                                       # cogent
+        BitwiseAndExpressionNoFb                                {$_[0]->{js_package}->BitwiseXorExpressionNoFb_1(@_);}
+|       BitwiseXorExpressionNoFb '^' BitwiseAndExpression       {$_[0]->{js_package}->BitwiseXorExpressionNoFb_2(@_);}
+;
+
+BitwiseXorExpressionNoIn:                                       # 11.10
+        BitwiseAndExpressionNoIn                                {$_[0]->{js_package}->BitwiseXorExpressionNoIn_1(@_);}
+|       BitwiseXorExpressionNoIn '^' BitwiseAndExpressionNoIn   {$_[0]->{js_package}->BitwiseXorExpressionNoIn_2(@_);}
+;
+
+BitwiseOrExpression:                                            # 11.10
+        BitwiseXorExpression                                    {$_[0]->{js_package}->BitwiseOrExpression_1(@_);}
+|       BitwiseOrExpression '|' BitwiseXorExpression            {$_[0]->{js_package}->BitwiseOrExpression_2(@_);}
+;
+
+BitwiseOrExpressionNoFb:                                        # cogent
+        BitwiseXorExpressionNoFb                                {$_[0]->{js_package}->BitwiseOrExpressionNoFb_1(@_);}
+|       BitwiseOrExpressionNoFb '|' BitwiseXorExpression        {$_[0]->{js_package}->BitwiseOrExpressionNoFb_2(@_);}
+;
+
+BitwiseOrExpressionNoIn:                                        # 11.10
+        BitwiseXorExpressionNoIn                                {$_[0]->{js_package}->BitwiseOrExpressionNoIn_1(@_);}
+|       BitwiseOrExpressionNoIn '|' BitwiseXorExpressionNoIn    {$_[0]->{js_package}->BitwiseOrExpressionNoIn_2(@_);}
+;
+
+LogicalAndExpression:                                           # 11.11
+        BitwiseOrExpression                                     {$_[0]->{js_package}->LogicalAndExpression_1(@_);}
+|       LogicalAndExpression '&&' BitwiseOrExpression           {$_[0]->{js_package}->LogicalAndExpression_2(@_);}
+;
+
+LogicalAndExpressionNoFb:                                       # cogent
+        BitwiseOrExpressionNoFb                                 {$_[0]->{js_package}->LogicalAndExpressionNoFb_1(@_);}
+|       LogicalAndExpressionNoFb '&&' BitwiseOrExpression       {$_[0]->{js_package}->LogicalAndExpressionNoFb_2(@_);}
+;
+
+LogicalAndExpressionNoIn:                                       # 11.11
+        BitwiseOrExpressionNoIn                                 {$_[0]->{js_package}->LogicalAndExpressionNoIn_1(@_);}
+|       LogicalAndExpressionNoIn '&&' BitwiseOrExpressionNoIn   {$_[0]->{js_package}->LogicalAndExpressionNoIn_2(@_);}
+;
+
+LogicalOrExpression:                                            # 11.11
+        LogicalAndExpression                                    {$_[0]->{js_package}->LogicalOrExpression_1(@_);}
+|       LogicalOrExpression '||' LogicalAndExpression           {$_[0]->{js_package}->LogicalOrExpression_2(@_);}
+;
+
+LogicalOrExpressionNoFb:                                        # cogent
+        LogicalAndExpressionNoFb                                {$_[0]->{js_package}->LogicalOrExpressionNoFb_1(@_);}
+|       LogicalOrExpressionNoFb '||' LogicalAndExpression       {$_[0]->{js_package}->LogicalOrExpressionNoFb_2(@_);}
+;
+
+LogicalOrExpressionNoIn:                                        # 11.11
+        LogicalAndExpressionNoIn                                {$_[0]->{js_package}->LogicalOrExpressionNoIn_1(@_);}
+|       LogicalOrExpressionNoIn '||' LogicalAndExpressionNoIn   {$_[0]->{js_package}->LogicalOrExpressionNoIn_2(@_);}
+;
+
+ConditionalExpression:                                          # 11.12
+        LogicalOrExpression                                                                     {$_[0]->{js_package}->ConditionalExpression_1(@_);}
+|       LogicalOrExpression '?' AssignmentExpression ':' AssignmentExpression                   {$_[0]->{js_package}->ConditionalExpression_2(@_);}
+;
+
+ConditionalExpressionNoFb:                                      # cogent
+        LogicalOrExpressionNoFb                                                                 {$_[0]->{js_package}->ConditionalExpressionNoFb_1(@_);}
+|       LogicalOrExpressionNoFb '?' AssignmentExpression ':' AssignmentExpression               {$_[0]->{js_package}->ConditionalExpressionNoFb_2(@_);}
+;
+
+ConditionalExpressionNoIn:                                      # 11.12
+        LogicalOrExpressionNoIn                                                                 {$_[0]->{js_package}->ConditionalExpressionNoIn_1(@_);}
+|       LogicalOrExpressionNoIn '?' AssignmentExpressionNoIn ':' AssignmentExpressionNoIn       {$_[0]->{js_package}->ConditionalExpressionNoIn_2(@_);}
+;
+
+AssignmentExpression:                                           # 11.13
+        ConditionalExpression                                                   {$_[0]->{js_package}->AssignmentExpression_1(@_);}
+|       LeftHandSideExpression AssignmentOperator AssignmentExpression          {$_[0]->{js_package}->AssignmentExpression_2(@_);}
+;
+
+AssignmentExpressionNoFb:                                       # cogent
+        ConditionalExpressionNoFb                                               {$_[0]->{js_package}->AssignmentExpressionNoFb_1(@_);}
+|       LeftHandSideExpressionNoFb AssignmentOperator AssignmentExpression      {$_[0]->{js_package}->AssignmentExpressionNoFb_2(@_);}
+;
+
+AssignmentExpressionNoIn:                                       # 11.13
+        ConditionalExpressionNoIn                                               {$_[0]->{js_package}->AssignmentExpressionNoIn_1(@_);}
+|       LeftHandSideExpression AssignmentOperator AssignmentExpressionNoIn      {$_[0]->{js_package}->AssignmentExpressionNoIn_2(@_);}
+;
+
+AssignmentOperator:                                             # 11.13
+        '='                             {$_[0]->{js_package}->AssignmentOperator_1(@_);}
+|       '*='                            {$_[0]->{js_package}->AssignmentOperator_2(@_);}
+|       '/='                            {$_[0]->{js_package}->AssignmentOperator_3(@_);}
+|       '%='                            {$_[0]->{js_package}->AssignmentOperator_4(@_);}
+|       '+='                            {$_[0]->{js_package}->AssignmentOperator_5(@_);}
+|       '-='                            {$_[0]->{js_package}->AssignmentOperator_6(@_);}
+|       '<<='                           {$_[0]->{js_package}->AssignmentOperator_7(@_);}
+|       '>>='                           {$_[0]->{js_package}->AssignmentOperator_8(@_);}
+|       '>>>='                          {$_[0]->{js_package}->AssignmentOperator_9(@_);}
+|       '&='                            {$_[0]->{js_package}->AssignmentOperator_10(@_);}
+|       '^='                            {$_[0]->{js_package}->AssignmentOperator_11(@_);}
+|       '|='                            {$_[0]->{js_package}->AssignmentOperator_12(@_);}
+;
+
+Expression:                                                     # 11.14
+        AssignmentExpression                                    {$_[0]->{js_package}->Expression_1(@_);}
+|       Expression ',' AssignmentExpression                     {$_[0]->{js_package}->Expression_2(@_);}
+;
+
+ExpressionNoFb:                                                 # cogent
+        AssignmentExpressionNoFb                                {$_[0]->{js_package}->ExpressionNoFb_1(@_);}
+|       ExpressionNoFb ',' AssignmentExpression                 {$_[0]->{js_package}->ExpressionNoFb_2(@_);}
+;
+
+ExpressionNoIn:                                                 # 11.14
+        AssignmentExpressionNoIn                                {$_[0]->{js_package}->ExpressionNoIn_1(@_);}
+|       ExpressionNoIn ',' AssignmentExpressionNoIn             {$_[0]->{js_package}->ExpressionNoIn_2(@_);}
+;
+
+# Statements                                                    # A.4
+Statement:                                                      # 12
+        Block                                                   {$_[0]->{js_package}->Statement_1(@_);}
+|       VariableStatement                                       {$_[0]->{js_package}->Statement_2(@_);}
+|       EmptyStatement                                          {$_[0]->{js_package}->Statement_3(@_);}
+|       ExpressionStatement                                     {$_[0]->{js_package}->Statement_4(@_);}
+|       IfStatement                                             {$_[0]->{js_package}->Statement_5(@_);}
+|       IterationStatement                                      {$_[0]->{js_package}->Statement_6(@_);}
+|       ContinueStatement                                       {$_[0]->{js_package}->Statement_7(@_);}
+|       BreakStatement                                          {$_[0]->{js_package}->Statement_8(@_);}
+|       ReturnStatement                                         {$_[0]->{js_package}->Statement_9(@_);}
+|       WithStatement                                           {$_[0]->{js_package}->Statement_10(@_);}
+|       LabelledStatement                                       {$_[0]->{js_package}->Statement_11(@_);}
+|       SwitchStatement                                         {$_[0]->{js_package}->Statement_12(@_);}
+|       ThrowStatement                                          {$_[0]->{js_package}->Statement_13(@_);}
+|       TryStatement                                            {$_[0]->{js_package}->Statement_14(@_);}
+;
+
+Block:                                                          # 12.1
+        '{' '}'                                                 {$_[0]->{js_package}->Block_1(@_);}
+|       '{' StatementList '}'                                   {$_[0]->{js_package}->Block_2(@_);}
+;
+
+StatementList:                                                  # 12.1
+        Statement                                               {$_[0]->{js_package}->StatementList_1(@_);}
+|       StatementList Statement                                 {$_[0]->{js_package}->StatementList_2(@_);}
+;
+
+VariableStatement:                                              # 12.2
+        'var' VariableDeclarationList ';'                       {$_[0]->{js_package}->VariableStatement_1(@_);}
+;
+
+VariableDeclarationList:                                        # 12.2
+        VariableDeclaration                                     {$_[0]->{js_package}->VariableDeclarationList_1(@_);}
+|       VariableDeclarationList ',' VariableDeclaration         {$_[0]->{js_package}->VariableDeclarationList_2(@_);}
+;
+
+VariableDeclarationListNoIn:                                    # 12.2
+        VariableDeclarationNoIn                                 {$_[0]->{js_package}->VariableDeclarationListNoIn_1(@_);}
+|       VariableDeclarationListNoIn ',' VariableDeclarationNoIn {$_[0]->{js_package}->VariableDeclarationListNoIn_2(@_);}
+;
+
+VariableDeclaration:                                            # 12.2
+        Identifier                                              {$_[0]->{js_package}->VariableDeclaration_1(@_);}
+|       Identifier Initialiser                                  {$_[0]->{js_package}->VariableDeclaration_2(@_);}
+;
+
+VariableDeclarationNoIn:                                        # 12.2
+        Identifier                                              {$_[0]->{js_package}->VariableDeclarationNoIn_1(@_);}
+|       Identifier InitialiserNoIn                              {$_[0]->{js_package}->VariableDeclarationNoIn_2(@_);}
+;
+
+Initialiser:                                                    # 12.2
+        '=' AssignmentExpression                                {$_[0]->{js_package}->Initializer_1(@_);}
+;
+
+InitialiserNoIn:                                                # 12.2
+        '=' AssignmentExpressionNoIn                            {$_[0]->{js_package}->InitializerNoIn_1(@_);}
+;
+
+EmptyStatement:                                                 # 12.3
+        ';'                                                     {$_[0]->{js_package}->EmptyStatement_1(@_);}
+;
+
+ExpressionStatement:                                            # 12.4
+        ExpressionNoFb ';'                                      {$_[0]->{js_package}->ExpressionStatement_1(@_);}
+;
+
+IfStatement:                                                    # 12.5
+        'if' '(' Expression ')' Statement 'else' Statement      {$_[0]->{js_package}->IfStatement_1(@_);}
+|       'if' '(' Expression ')' Statement                       {$_[0]->{js_package}->IfStatement_2(@_);}
+;
+
+IterationStatement:                                             # 12.6
+        'do' Statement 'while' '(' Expression ')' ';'                                           {$_[0]->{js_package}->IterationStatement_1(@_);}
+|       'while' '(' Expression ')' Statement                                                    {$_[0]->{js_package}->IterationStatement_2(@_);}
+|       'for' '('                ';'            ';'            ')' Statement                    {$_[0]->{js_package}->IterationStatement_3(@_);}
+|       'for' '('                ';'            ';' Expression ')' Statement                    {$_[0]->{js_package}->IterationStatement_4(@_);}
+|       'for' '('                ';' Expression ';'            ')' Statement                    {$_[0]->{js_package}->IterationStatement_5(@_);}
+|       'for' '('                ';' Expression ';' Expression ')' Statement                    {$_[0]->{js_package}->IterationStatement_6(@_);}
+|       'for' '(' ExpressionNoIn ';'            ';'            ')' Statement                    {$_[0]->{js_package}->IterationStatement_7(@_);}
+|       'for' '(' ExpressionNoIn ';'            ';' Expression ')' Statement                    {$_[0]->{js_package}->IterationStatement_8(@_);}
+|       'for' '(' ExpressionNoIn ';' Expression ';'            ')' Statement                    {$_[0]->{js_package}->IterationStatement_9(@_);}
+|       'for' '(' ExpressionNoIn ';' Expression ';' Expression ')' Statement                    {$_[0]->{js_package}->IterationStatement_10(@_);}
+|       'for' '(' 'var' VariableDeclarationListNoIn ';'            ';'            ')' Statement {$_[0]->{js_package}->IterationStatement_11(@_);}
+|       'for' '(' 'var' VariableDeclarationListNoIn ';'            ';' Expression ')' Statement {$_[0]->{js_package}->IterationStatement_12(@_);}
+|       'for' '(' 'var' VariableDeclarationListNoIn ';' Expression ';'            ')' Statement {$_[0]->{js_package}->IterationStatement_14(@_);}
+|       'for' '(' 'var' VariableDeclarationListNoIn ';' Expression ';' Expression ')' Statement {$_[0]->{js_package}->IterationStatement_15(@_);}
+|       'for' '(' LeftHandSideExpression 'in' Expression ')' Statement                          {$_[0]->{js_package}->IterationStatement_16(@_);}
+|       'for' '(' 'var' VariableDeclarationListNoIn 'in' Expression ')' Statement               {$_[0]->{js_package}->IterationStatement_17(@_);}
+;
+
+ContinueStatement:                                              # 12.7
+        'continue' _ISON_ ';'                                   {$_[0]->{js_package}->ContinueStatement_1(@_);}
+|       'continue' _ISON_ Identifier ';'                        {$_[0]->{js_package}->ContinueStatement_2(@_);}
+;
+
+BreakStatement:                                                 # 12.8
+        'break' _ISON_ ';'                                      {$_[0]->{js_package}->BreakStatement_1(@_);}
+|       'break' _ISON_ Identifier ';'                           {$_[0]->{js_package}->BreakStatement_2(@_);}
+;
+
+ReturnStatement:                                                # 12.9
+        'return' _ISON_ ';'                                     {$_[0]->{js_package}->ReturnStatement_1(@_);}
+|       'return' _ISON_ Expression ';'                          {$_[0]->{js_package}->ReturnStatement_2(@_);}
+;
+
+WithStatement:                                                  # 12.10
+        'with' '(' Expression ')' Statement                     {$_[0]->{js_package}->WithStatement_1(@_);}
+;
+
+SwitchStatement:                                                # 12.11
+        'switch' '(' Expression ')' CaseBlock                   {$_[0]->{js_package}->SwitchStatement_1(@_);}
+;
+
+CaseBlock:                                                      # 12.11
+        '{' '}'                                                 {$_[0]->{js_package}->CaseBlock_1(@_);}
+|       '{' CaseClauses '}'                                     {$_[0]->{js_package}->CaseBlock_2(@_);}
+|       '{'             DefaultClause             '}'           {$_[0]->{js_package}->CaseBlock_3(@_);}
+|       '{'             DefaultClause CaseClauses '}'           {$_[0]->{js_package}->CaseBlock_4(@_);}
+|       '{' CaseClauses DefaultClause             '}'           {$_[0]->{js_package}->CaseBlock_5(@_);}
+|       '{' CaseClauses DefaultClause CaseClauses '}'           {$_[0]->{js_package}->CaseBlock_6(@_);}
+;
+
+CaseClauses:                                                    # 12.11
+        CaseClause                                              {$_[0]->{js_package}->CaseClauses_1(@_);}
+|       CaseClauses CaseClause                                  {$_[0]->{js_package}->CaseClauses_2(@_);}
+;
+
+CaseClause:                                                     # 12.11
+        'case' Expression ':'                                   {$_[0]->{js_package}->CaseClause_1(@_);}
+|       'case' Expression ':' StatementList                     {$_[0]->{js_package}->CaseClause_2(@_);}
+;
+
+DefaultClause:                                                  # 12.11
+        'default' ':'                                           {$_[0]->{js_package}->DefaultClause_1(@_);}
+|       'default' ':' StatementList                             {$_[0]->{js_package}->DefaultClause_2(@_);}
+;
+
+LabelledStatement:                                              # 12.12
+        Identifier ':' Statement                                {$_[0]->{js_package}->LabelledStatement_1(@_);}
+;
+
+ThrowStatement:                                                 # 12.13
+        'throw' _ISON_ ';'                                      {$_[0]->{js_package}->ThrowStatement_1(@_);}
+        'throw' _ISON_ Expression ';'                           {$_[0]->{js_package}->ThrowStatement_1(@_);}
+;
+
+TryStatement:                                                   # 12.14
+        'try' Block Catch                                       {$_[0]->{js_package}->TryStatement_1(@_);}
+|       'try' Block Finally                                     {$_[0]->{js_package}->TryStatement_2(@_);}
+|       'try' Block Catch Finally                               {$_[0]->{js_package}->TryStatement_3(@_);}
+;
+
+Catch:                                                          # 12.14
+        'catch' '(' Identifier ')' Block                        {$_[0]->{js_package}->Catch_1(@_);}
+;
+
+Finally:                                                        # 12.14
+        'finally' Block                                         {$_[0]->{js_package}->Finally_1(@_);}
+;
+
+# Functions and Programs                                        # A.5
+FunctionDeclaration:                                            # 13
+        'function' Identifier '('                     ')' '{' FunctionBody '}'  {$_[0]->{js_package}->FunctionDeclaration_1(@_);}
+|       'function' Identifier '(' FormalParameterList ')' '{' FunctionBody '}'  {$_[0]->{js_package}->FunctionDeclaration_2(@_);}
+;
+
+FunctionExpression:                                             # 13
+        'function'            '('                     ')' '{' FunctionBody '}'  {$_[0]->{js_package}->FunctionExpression_1(@_);}
+|       'function'            '(' FormalParameterList ')' '{' FunctionBody '}'  {$_[0]->{js_package}->FunctionExpression_2(@_);}
+|       'function' Identifier '('                     ')' '{' FunctionBody '}'  {$_[0]->{js_package}->FunctionExpression_3(@_);}
+|       'function' Identifier '(' FormalParameterList ')' '{' FunctionBody '}'  {$_[0]->{js_package}->FunctionExpression_4(@_);}
+;
+
+FormalParameterList:                                            # 13
+        Identifier                                              {$_[0]->{js_package}->FormalParameterList_1(@_);}
+|       FormalParameterList ',' Identifier                      {$_[0]->{js_package}->FormalParameterList_2(@_);}
+;
+
+FunctionBody:                                                   # 13
+        SourceElements                                          {$_[0]->{js_package}->FunctionBody_1(@_);}
+;
+
+Program:                                                        # 14
+        SourceElements                                          {$_[0]->{js_package}->Program_1(@_);}
+;
+
+SourceElements:                                                 # 14
+        SourceElement                                           {$_[0]->{js_package}->SourceElements_1(@_);}
+|       SourceElements SourceElement                            {$_[0]->{js_package}->SourceElements_2(@_);}
+;
+
+SourceElement:                                                  # 14
+        Statement                                               {$_[0]->{js_package}->SourceElement_1(@_);}
+|       FunctionDeclaration                                     {$_[0]->{js_package}->SourceElement_2(@_);}
+;
+
+%%
+#=============================================================================
+# Footer
+#-----------------------------------------------------------------------------
+use warnings;
+use strict;
+
+use constant YUCKPACKAGE => "JavaScript::Grammar::Default";
+{
+        package JavaScript::Grammar::Default;
+
+        sub AUTOLOAD
+        {
+                # First param is $self, second is the parser, so third
+                #   is the first token.  Returning the first token is
+                #   pretty lame, but it's what Parse::Yapp does, so hey.
+                # Except that we don't want to return undef if we can
+                #   avoid it.  (Should always be able to.)
+                for (my $x = 2; $x < @_; $x++) {
+                        return $_[$x] if defined $_[$x];
+                }
+                return undef;
+        }
+}
+
+sub YYParse
+{
+        my $self = shift;
+        my %args;
+
+        {
+                my %temp = @_;
+                # lowercase keys.  It's not a big hash, so this shouldn't be too bad.
+                $args{lc($_)} = $temp{$_} for (keys %temp);
+        }
+
+        for (qw(iere ied ison)) {
+                $self->{"js_$_"} = $args{$_} || $args{"yy$_"} || sub {};
+                delete @args{$_, "yy$_"};
+        }
+
+        for (qw(package)) {
+                $self->{"js_$_"} = $args{$_} || $args{"yy$_"} || YUCKPACKAGE;
+                delete @args{$_, "yy$_"};
+        }
+
+        $self->SUPER::YYParse(%args);
+}
+
+=head1 NAME
+
+JavaScript::Grammar - Parse::Yapp module for parsing JavaScript
+
+=head1 SYNOPSIS
+
+=head1 DESCRIPTION
+
+=head1 METHODS
+
+=head1 STANDARDS COMPLIANCE
+
+=head1 BUGS
+
+See the CPAN Request Tracker for JavaScript::Parser, at
+L<http://rt.cpan.org/NoAuth/Bugs.html?Dist=JavaScript-Parser>.
+
+=head1 SEE ALSO
+
+L<Parse::Yapp>.
+
+L<JavaScript::Parser>.
+
+I<ECMA-262>:  I<ECMAScript Language Specification>,
+L<http://www.ecma.ch/ecma1/STAND/ECMA-262.HTM>
+
+L<http://www.mozilla.org/js/language/>
+
+=head1 AUTHOR
+
+David "cogent" Hand, L<mailto:cogent@cpan.org>.
+
+Copyright (c) 2003.  All rights reserved.  This module is free software;
+you may restribute and/or modify it under the same terms as Perl itself.
+
+As distributed, JavaScript::Grammar contains code from Parse::Yapp,
+which is copyright (c) 1998-2001 Francois Desarmenien, France.  All
+rights reserved.  You may use and distribute this code under the same
+terms as Perl itself.
+
+=cut

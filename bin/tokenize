@@ -1,0 +1,34 @@
+#! /usr/local/bin/perl
+use warnings;
+use strict;
+
+use lib '../lib';
+
+#use Benchmark qw| timethis |;
+use JavaScript::Tokenizer;
+
+my $test = sub
+{
+        local $/;  # slurp!
+        open CODE, "../t/js/inspector.js-x" or die "florp! $!";
+        my $code = <CODE>;
+        close CODE or die "florp! $!";
+
+        my $tokens = JavaScript::Tokenizer->from_string($code);
+        my @tokens = ();
+        while (defined(my $token = $tokens->pop)) {
+                push @tokens, $token;
+        }
+
+        if (join('', @tokens) eq $code) {
+                print "yes\n";
+        } else {
+                print "_" x 80, "\n";
+                print join('', @tokens), "\n";
+                print "_" x 80, "\n";
+        }
+};
+
+&$test();
+
+#timethis (1, $test);

@@ -1,0 +1,18 @@
+Changes
+lib/JavaScript/Grammar.pm
+lib/JavaScript/Grammar.yp
+lib/JavaScript/Parser.pm
+lib/JavaScript/Tokenizer.pm
+lib/JavaScript/Tokenizer/Token.pm
+lib/Regexp/Common/JavaScript.pm
+Makefile.PL
+MANIFEST
+MANIFEST.SKIP
+META.yml			Module meta-data (added by MakeMaker)
+README
+t/inventory.t
+t/js/lionbanking.js
+t/js/lionbanking.js.tokens
+t/regex.t
+t/token.t
+t/tokenizer.t

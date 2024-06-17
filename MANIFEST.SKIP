@@ -1,0 +1,11 @@
+.cvsignore
+(^|/)CVS/
+^blib/
+^bin/
+^MANIFEST.bak$
+^Makefile$
+^Makefile\.old$
+^pm_to_blib$
+~$
+\.sw.$
+^\._
